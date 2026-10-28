@@ -1,0 +1,15 @@
+# wash v2 config for the WEB component.
+#
+# This component serves the branded UI and owns the crafted archives. It is the
+# mirror image of the extractor: it has NO filesystem (no volume) and NO network
+# egress. On /run it opens a live p3 stream<u8> and hands the archive to the
+# extractor across the host runtime link — the bytes never touch this
+# component's (non-existent) disk.
+version: "0.1.0"
+build:
+  command: cargo build --target wasm32-wasip2 --release
+  component_path: target/wasm32-wasip2/release/zip_sandbox_web.wasm
+workload:
+  # Deny-all egress. The web component calls nothing server-side.
+  allowedHosts: []
+  # No volumeMounts, no volumes: this component has no on-disk authority at all.

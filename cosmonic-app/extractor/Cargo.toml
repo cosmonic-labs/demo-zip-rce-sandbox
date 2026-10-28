@@ -1,0 +1,39 @@
+[package]
+name = "zip-sandbox-extractor"
+edition = "2021"
+version = "0.2.0"
+# p3 build floor (see the web crate's note): wasip3 0.7.x+ needs
+# wasm-component-ld >= 0.5.20, bundled with Rust >= 1.94.
+rust-version = "1.94"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# No HTTP here. This component exports ONE custom p3 interface
+# (`cosmonic:zip-demo/extraction`) whose `extract` takes a live `stream<u8>`.
+# It is invoked only by the `web` component over the host's runtime link; the
+# host never routes HTTP to it. So it needs wit-bindgen (for the async + stream
+# codegen) but not the `wasip3` http crate.
+wit-bindgen = { version = "0.62.0", default-features = false, features = [
+    "macros",
+    "async",
+    "async-spawn",
+    "inter-task-wakeup",
+] }
+
+# SAME vulnerable crate + version as the native demo. Not upgraded, not patched.
+# The sandbox is the mitigation. default-features off + rust_backend keep the
+# deflate path pure-Rust so it builds to wasm32-wasip2.
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

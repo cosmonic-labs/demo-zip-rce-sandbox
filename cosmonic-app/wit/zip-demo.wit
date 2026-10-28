@@ -1,0 +1,41 @@
+package cosmonic:zip-demo@0.1.0;
+
+/// The private, in-host interface between the two sandboxed components.
+///
+/// The `web` component (which has NO filesystem) streams the untrusted archive
+/// bytes across this link to the `extractor` component (whose only authority is
+/// the single `/tmp/unzip` directory). The bytes travel as a live p3
+/// `stream<u8>` that crosses the component boundary at runtime via the host's
+/// resource-identity passthrough — the handle is linked guest-to-guest, not
+/// buffered to a byte array at the linker. This mirrors wasmCloud's
+/// `integration_p3_streams` test: two separate components in one workload,
+/// auto-linked, with a `stream<u8>` crossing the dynamic linker intact.
+///
+/// Two components, two disjoint capability grants, one live stream between them.
+interface extraction {
+  /// Drain the archive stream into the sandbox, extract it with the (unpatched,
+  /// vulnerable) `zip` crate, and return a JSON verdict report describing what
+  /// the archive asked for versus what the sandbox actually allowed.
+  ///
+  /// Declared `async` so its component func type carries the async flag — the
+  /// `[async-lower]`/`[async-lift]` canonical ABI that streams the handle
+  /// across the linker requires an async function type (a plain `func` taking a
+  /// stream fails to encode: "the `async` canonical option requires an async
+  /// function type"). This mirrors how `wasi:http/handler`'s `handle` is async.
+  extract: async func(archive: stream<u8>) -> string;
+}
+
+/// The extractor component: exports the extraction interface and nothing else.
+/// It has no HTTP surface of its own — the host invokes it only through the
+/// runtime link from `web`. Its filesystem authority (the `/tmp/unzip` volume)
+/// is granted per-component in the Workload, not here.
+world extractor {
+  export extraction;
+}
+
+/// The web component: imports the extraction interface so it can hand the
+/// archive stream to the extractor. Its HTTP entrypoint (wasi:http/handler) is
+/// generated separately by the `wasip3` crate, so it is not declared here.
+world web {
+  import extraction;
+}

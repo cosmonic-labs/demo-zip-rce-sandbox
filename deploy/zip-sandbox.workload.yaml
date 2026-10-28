@@ -1,0 +1,62 @@
+# Durable Workload — the zip-crate RCE sandbox demo.
+#
+# ONE workload, TWO components, auto-linked by the host, with a live p3
+# `stream<u8>` crossing between them (wasmCloud's integration_p3_streams
+# pattern). Each component keeps its OWN capability grants:
+#
+#   web        exports wasi:http/handler (the UI + entrypoint).
+#              Grants: NONE. No volume (no filesystem), allowedHosts: [] (no network).
+#   extractor  exports cosmonic:zip-demo/extraction (the unzip, vulnerable crate).
+#              Grants: the single /tmp/unzip ephemeral volume. allowedHosts: [] (no network).
+#              No HTTP surface — reachable only through the runtime link from web.
+#
+# The browser calls web's /run; web streams the crafted archive across the link
+# to extractor; extractor returns the verdict. The untrusted bytes never touch
+# web's (non-existent) disk, and nothing outside the host can reach extractor.
+#
+# Images are published to GitHub Container Registry (public):
+#   ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/{web,extractor}
+#
+# Apply: cosmonic_workload_apply(<this file>)  (or the Control equivalent).
+apiVersion: runtime.wasmcloud.dev/v1alpha1
+kind: Workload
+metadata:
+  name: zip-sandbox
+  namespace: default
+  annotations:
+    # The published demo images are unsigned, so Cosmonic Desktop needs this to
+    # run them. For a Cosmonic Control / production deployment, SIGN the images
+    # and REMOVE this annotation — do not weaken signature enforcement there.
+    desktop.cosmonic.com/unsafe-allow-unsigned: "true"
+spec:
+  components:
+    # The UI + HTTP entrypoint. Imports cosmonic:zip-demo/extraction (satisfied
+    # by the extractor component below, auto-linked). Zero capability grants.
+    - name: web
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:0.1.0@sha256:66f241547b251abbd56887a1a14538233638439a2bc8eb25848c5238aa04ebdb
+      poolSize: 8
+      localResources:
+        allowedHosts: []   # deny-all egress; no volume = zero filesystem authority
+
+    # The vulnerable unzip. Exports cosmonic:zip-demo/extraction. Its ONLY
+    # authority is the /tmp/unzip scratch dir; no network, no HTTP.
+    - name: extractor
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor:0.1.0@sha256:979addb0ba84b85008b78b7cb0fc259fcc579dab9a93632f4c3295b2ed35bb7e
+      poolSize: 1
+      localResources:
+        allowedHosts: []            # deny-all egress: cannot phone home
+        volumeMounts:
+          - name: unzip
+            mountPath: /tmp/unzip   # the single writable path
+            readOnly: false
+  volumes:
+    - name: unzip
+      ephemeral: {}
+  hostInterfaces:
+    # Binds to the component that exports wasi:http/handler (web). extractor has
+    # no HTTP surface, so routing is unambiguous.
+    - namespace: wasi
+      package: http
+      interfaces: [handler]                 # p3 wasi:http/handler@0.3.0
+      config:
+        host: zip-sandbox.localhost         # http://zip-sandbox.localhost:8200/

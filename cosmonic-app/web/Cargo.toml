@@ -1,0 +1,36 @@
+[package]
+name = "zip-sandbox-web"
+edition = "2021"
+version = "0.2.1"
+# p3 build floor: wasip3's component-type section (0.7.x onward) needs
+# wasm-component-ld >= 0.5.20 (bundled with Rust >= 1.94); older toolchains fail
+# in the link step. The Desktop doctor's pinned toolchain satisfies it.
+rust-version = "1.94"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# WASI 0.3 (p3) HTTP handler. No zip/flate2/serde here: this component only
+# serves the UI and hand-rolls the crafted archive bytes. It has NO filesystem
+# and NO network grants. The `wit-bindgen` dep is also used directly (see
+# `zip_link` in src/lib.rs) to generate the runtime-link import of the
+# extractor's `extraction` interface, through which the archive is streamed.
+wasip3 = { version = "0.9.0", features = ["http-compat"] }
+wit-bindgen = { version = "0.62.0", default-features = false, features = [
+    "macros",
+    "async",
+    "async-spawn",
+    "inter-task-wakeup",
+] }
+
+http-body = "1"
+http-body-util = "0.1"
+bytes = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

@@ -1,0 +1,19 @@
+# wash v2 config for the EXTRACTOR component.
+#
+# This is the component that touches the untrusted zip bytes. Its grants are the
+# tightest in the demo: one scratch directory, and no network at all.
+version: "0.1.0"
+build:
+  command: cargo build --target wasm32-wasip2 --release
+  component_path: target/wasm32-wasip2/release/zip_sandbox_extractor.wasm
+workload:
+  # Deny-all egress. Even if the vulnerable crate tried to phone home, it can't.
+  allowedHosts: []
+  # The ONE place it may write. Its only filesystem authority. A zip-slip or
+  # absolute path has nowhere to escape to.
+  volumeMounts:
+    - name: unzip
+      mountPath: /tmp/unzip
+  volumes:
+    - name: unzip
+      ephemeral: {}
