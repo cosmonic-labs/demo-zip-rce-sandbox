@@ -41,7 +41,7 @@ spec:
     # The vulnerable unzip. Exports cosmonic:zip-demo/extraction. Its ONLY
     # authority is the /tmp/unzip scratch dir; no network, no HTTP.
     - name: extractor
-      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor:0.1.1@sha256:e08e5e2f97e3094256a1e9f11ffce2050adec652f60daeeb4c339f874da8e25e
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor:0.1.2@sha256:7dc63856755656a5ad608532b3c42e2257aa9356e8587bdae6c619f42a5a4b87
       poolSize: 1
       localResources:
         allowedHosts: []            # deny-all egress: cannot phone home
