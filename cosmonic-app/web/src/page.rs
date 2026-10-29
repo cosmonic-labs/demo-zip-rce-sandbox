@@ -55,6 +55,21 @@ pub const PAGE: &str = r###"<!doctype html>
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
   .dot.g{background:var(--green)} .dot.d{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)} .dot.b{background:var(--red)}
 
+  /* blog callout */
+  .callout{display:flex;align-items:center;gap:15px;margin:0 0 28px;padding:15px 18px;border-radius:14px;
+    border:1px solid var(--purple);background:linear-gradient(135deg,rgba(104,91,199,.2),rgba(104,91,199,.05));
+    box-shadow:0 0 0 1px rgba(143,132,230,.22),0 20px 46px -30px rgba(104,91,199,.95);
+    transition:border-color .15s ease, transform .05s ease}
+  .callout:hover{text-decoration:none;border-color:var(--purple-lt);transform:translateY(-1px)}
+  .callout .flag{flex:none;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#fff;background:linear-gradient(135deg,var(--purple),#4b3fb0);padding:6px 11px;border-radius:8px;
+    box-shadow:0 8px 20px -10px rgba(104,91,199,.8)}
+  .callout .ct{flex:1;min-width:0}
+  .callout .ct .h{display:block;color:var(--ink);font-weight:800;font-size:15.5px;letter-spacing:-.01em}
+  .callout .ct .d{display:block;color:var(--muted);font-size:13px;margin-top:3px}
+  .callout .arr{flex:none;color:var(--purple-lt);font-weight:800;font-size:22px;line-height:1}
+  @media(max-width:620px){.callout{gap:12px;padding:13px 15px}.callout .arr{display:none}}
+
   /* hero */
   .eyebrow{color:var(--purple-lt);font-weight:700;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;margin:0 0 10px}
   h1{font-size:clamp(28px,5vw,46px);line-height:1.04;letter-spacing:-.02em;margin:0 0 14px;font-weight:800}
@@ -170,6 +185,15 @@ pub const PAGE: &str = r###"<!doctype html>
       <span><span class="dot b"></span><b>blocked attempt</b></span>
     </div>
   </div>
+
+  <a class="callout" href="https://cosmonic.com/blog/stopping-remote-code-execution-with-a-sandbox/" target="_blank" rel="noopener">
+    <span class="flag">Read the story</span>
+    <span class="ct">
+      <span class="h">Stopping Remote Code Execution with a Sandbox</span>
+      <span class="d">The full write-up on the Cosmonic Blog: how two zip-crate CVEs are blocked by Cosmonic's secure, capability-driven sandbox.</span>
+    </span>
+    <span class="arr" aria-hidden="true">→</span>
+  </a>
 
   <p class="eyebrow"><span style="color:var(--red)">RUSTSEC-2026-0367</span> + <span style="color:var(--red)">CVE-2026-115905</span> · live demo</p>
   <h1>You can't execute<br>what you <span class="u">don't have</span>.</h1>
