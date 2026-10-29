@@ -278,7 +278,12 @@ pub fn extract_into_sandbox(zip_bytes: &[u8]) -> ExtractReport {
                 None => {
                     report.traversals_blocked += 1;
                     entry.traversal_blocked = true;
-                    let target = std::fs::read_to_string(&path).unwrap_or_default();
+                    // Read the body only if it is a plain file: never follow a link.
+                    let target = if md.is_symlink() {
+                        String::new()
+                    } else {
+                        std::fs::read_to_string(&path).unwrap_or_default()
+                    };
                     entry.note = format!("symlink to {target} landed as an inert plain file: the crate's symlink code is compiled out of wasm32-wasip2, and nothing outside {} exists for a link to reach", report.sandbox_root);
                 }
             }
@@ -325,8 +330,24 @@ pub fn extract_into_sandbox(zip_bytes: &[u8]) -> ExtractReport {
 
 /// Try to write a sentinel outside the sandbox and report whether the sandbox
 /// allowed it. We expect every one of these to be refused.
+///
+/// The probe only runs inside the Wasm sandbox. Built natively (a test harness,
+/// say, run as root) it would really create a file in /etc/cron.d, so there it
+/// is skipped. `create_new` means it can never overwrite an existing file.
 fn probe_write(target: &str) -> EscapeProbe {
-    match std::fs::write(target, b"escape") {
+    if !cfg!(target_os = "wasi") {
+        return EscapeProbe {
+            target: target.to_string(),
+            allowed: false,
+            os_error: Some("skipped: escape probes only run inside the Wasm sandbox".into()),
+        };
+    }
+    let created = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, b"escape"));
+    match created {
         Ok(()) => {
             // Should never happen in the sandbox; clean up if it somehow did.
             let _ = std::fs::remove_file(target);
