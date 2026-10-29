@@ -33,7 +33,7 @@ spec:
     # The UI + HTTP entrypoint. Imports cosmonic:zip-demo/extraction (satisfied
     # by the extractor component below, auto-linked). Zero capability grants.
     - name: web
-      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:0.1.0@sha256:66f241547b251abbd56887a1a14538233638439a2bc8eb25848c5238aa04ebdb
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:0.1.1@sha256:1703cf58c30d5f8c98ed8195bbc20641ba4529d285c169e6149321ab963fb5e5
       poolSize: 8
       localResources:
         allowedHosts: []   # deny-all egress; no volume = zero filesystem authority
@@ -41,7 +41,7 @@ spec:
     # The vulnerable unzip. Exports cosmonic:zip-demo/extraction. Its ONLY
     # authority is the /tmp/unzip scratch dir; no network, no HTTP.
     - name: extractor
-      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor:0.1.0@sha256:979addb0ba84b85008b78b7cb0fc259fcc579dab9a93632f4c3295b2ed35bb7e
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor:0.1.1@sha256:e08e5e2f97e3094256a1e9f11ffce2050adec652f60daeeb4c339f874da8e25e
       poolSize: 1
       localResources:
         allowedHosts: []            # deny-all egress: cannot phone home
