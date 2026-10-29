@@ -1,0 +1,14 @@
+[package]
+name = "zip-suid-demo"
+version = "0.1.0"
+edition = "2021"
+description = "Self-contained demo of RUSTSEC-2026-0367: the zip crate preserves SUID/SGID/sticky bits during extraction (CWE-732)."
+
+[[bin]]
+name = "zip-suid-demo"
+path = "src/main.rs"
+
+[dependencies]
+# The vulnerable line: 8.6.0 is < 9.0.0, so ZipArchive::extract() keeps the
+# privileged permission bits straight from the archive's external_attributes.
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

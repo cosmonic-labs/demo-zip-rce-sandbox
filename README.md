@@ -1,120 +1,80 @@
-# Stopping RCE: you can't execute what you don't have
+# Stopping Remote Code Execution with a Sandbox: a live zip-crate RCE demo
 
-![A malicious .zip tries to plant a root program or overwrite a file another service trusts; two Cosmonic sandboxes with scoped grants block every move — across both zip-crate CVEs.](docs/images/zip-sandbox-rce-hero.png)
+**Read the full story on the Cosmonic blog:** [Stopping Remote Code Execution with a Sandbox](https://cosmonic.com/blog/stopping-remote-code-execution-with-a-sandbox/)
 
-This is a live demo of **mitigating Remote Code Execution (RCE)** exploits with a secure,
-deny-by-default, isolated **Cosmonic Sandbox**. It takes a popular Rust library for opening `.zip`
-files — one with **two real CVEs a week apart** — runs the *exact same vulnerable code* inside the
-sandbox, and shows both attacks fail anyway. **Nothing is patched.**
+![A malicious zip tries to plant a root program or overwrite a file another service trusts; two Cosmonic sandboxes with scoped grants block every move.](docs/images/zip-sandbox-rce-hero.png)
 
-- **[RUSTSEC-2026-0367](https://rustsec.org/advisories/RUSTSEC-2026-0367.html)** (setuid, **CVSS 7.3**) —
-  the extractor copies setuid/setgid/sticky bits through verbatim, so a crafted zip can plant a file
-  that runs with **root powers**.
-- **[CVE-2026-115905](https://www.cve.org/CVERecord?id=CVE-2026-115905)** (zip cloaking, **CVSS 10.0**) —
-  an archive shows one benign filename to a scanner and hands a *different* path to a streaming
-  extractor, silently **overwriting a file another service trusts**.
+The Rust `zip` crate shipped two serious vulnerabilities nine days apart, one of them a CVSS 10.0.
+This repo runs that exact vulnerable code, unpatched, inside a deny-by-default
+[Cosmonic](https://cosmonic.com/) sandbox, and lets you fire real crafted archives at it. Every
+attack runs. None of them can do anything.
 
-> **The one idea.** A sandbox doesn't have to be clever enough to *spot* the attack. It starts with
-> **nothing** and only hands the code the specific powers you grant it — the right to touch one
-> scratch folder, and nothing else. You can't execute what you don't have. Read
-> **[Choosing an agent sandbox](https://cosmonic.com/ai-sandbox/choosing-an-agent-sandbox/)** and the
-> **[principles of secure platforms](https://cosmonic.com/ai-sandbox/principles/)** (deny-by-default,
-> least authority, [policy enforcement points](https://cosmonic.com/ai-sandbox/principles/policy-enforcement-points/),
-> [capabilities over ambient authority](https://cosmonic.com/ai-sandbox/capabilities/)).
+**Step by step:** [Sandboxed zip extractor](https://cosmonic.com/docs/desktop/examples/sandboxed-zip-extractor) (the docs walkthrough)
 
-**Live UI:** <http://zip-sandbox.localhost:8200/> once deployed.
+> **You can't execute what you don't have.** A sandbox doesn't have to recognize the attack. It
+> starts with nothing and hands the code only the capabilities you grant: here, one scratch folder
+> and no network. See [principles of secure agent platforms](https://cosmonic.com/ai-sandbox/principles/).
 
----
+## The four attack scenarios
 
-## How it's built — two components, two disjoint grant sets
+The demo page has one red button per scenario. Each streams a real crafted archive into the sandbox;
+nothing is patched.
 
-The demo is **one workload with two components**, each its own sandbox, wired by a **live p3
-`stream<u8>`** that crosses between them inside the host:
+| Button | Vulnerability | What the crafted archive does | In the sandbox |
+|---|---|---|---|
+| **Bug 1: setuid bits** | [RUSTSEC-2026-0367](https://rustsec.org/advisories/RUSTSEC-2026-0367.html) · setuid · CVSS 7.3 | Three entries carry setuid, setgid and sticky bits. On a Unix extractor they'd hand a dropped file root-level powers. | All three bits reach the report; zero are applied. |
+| **Bug 2: zip slip** | CWE-22 · path traversal · CVSS 8.1 | Entry names use `../` to write outside the extraction folder, aiming at `/tmp` and `/etc/cron.d`. | All three paths are refused. |
+| **Bug 3: zip cloaking** | [CVE-2026-115905](https://www.cve.org/CVERecord?id=CVE-2026-115905) · zip cloaking · CVSS 10.0 | The central directory shows a scanner `release-notes.txt`; the local header tells a streaming extractor to write `home/you/.ssh/authorized_keys`. | The cloaked write is honored but lands inside `/tmp/unzip`, a throwaway folder. |
+| **Run all attacks** | all three at once | One archive carrying every attack above. | All of the above, contained together. |
 
-| Component (in [`deploy/zip-sandbox.workload.yaml`](deploy/zip-sandbox.workload.yaml)) | Filesystem | Network | HTTP |
-|----------|------------|---------|------|
-| `web` (the UI + entrypoint) | ❌ none | ❌ deny-all | exports `wasi:http/handler` |
-| `extractor` (the unzip) | ✅ `/tmp/unzip` only | ❌ deny-all | none — reachable only via the link |
+Other IDs, if you're searching for them: RUSTSEC-2026-0367 is GHSA-vv5m-jxxh-4627 (CWE-732), and
+CVE-2026-115905 is GHSA-m665-v7pm-7grj (CWE-436).
 
-Those grants *are* the mitigation: the extractor's one `/tmp/unzip` volume is its only filesystem
-preopen, `allowedHosts: []` on both means neither can phone home, and the extractor has no HTTP
-surface at all — the host auto-links `web`'s import of `cosmonic:zip-demo/extraction` to the
-extractor's export, and the untrusted archive travels between them as a live stream. The browser
-talks to one origin; the component boundary is crossed inside the host.
+Both advisories affect `zip` 8.6.0, the version used here on purpose. **In your own code, upgrade to
+`zip` 9.0.5**, which fixes both.
 
-The two components are published to **GitHub Container Registry**:
+## Quickstart
 
-- `ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web`
-- `ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/extractor`
+1. **Install [Cosmonic Desktop](https://cosmonic.com/desktop/).** It runs WebAssembly components as
+   sandboxed workloads on macOS, Windows and Linux, and listens on `127.0.0.1:8200`.
+2. **Apply the manifest.** [`deploy/zip-sandbox.workload.yaml`](deploy/zip-sandbox.workload.yaml)
+   pins both components by digest on ghcr, so there's nothing to build. The easiest route is an AI
+   assistant connected to Desktop's MCP server
+   ([Connect coding agents](https://cosmonic.com/docs/desktop/coding-agents/)):
 
----
+   > "Apply `deploy/zip-sandbox.workload.yaml` to Cosmonic Desktop, then show me its status."
 
-## Step 1 — Install Cosmonic Desktop
+   Or copy the manifest to `workloads/default/zip-sandbox.yaml` under Desktop's state directory
+   (`cosmonicd paths` prints it).
+3. **Open <http://zip-sandbox.localhost:8200/>** and press the red buttons, one per
+   [scenario](#the-four-attack-scenarios), or upload your own zip.
 
-Cosmonic Desktop is a local wasmCloud host: it runs WebAssembly components as sandboxed workloads on
-your own machine.
+> **One gotcha.** The extractor needs its `/tmp/unzip` volume. Desktop's quick-deploy paths
+> (`cosmonic dev`, publish drafts, pasting an image link) build a spec from the image alone and drop
+> the `volumes` section, and the extractor then answers `"sandbox unavailable"`. Apply the manifest
+> as written.
 
-- **Download / join the beta:** <https://cosmonic.com/desktop/>
-- **Docs:** <https://cosmonic.com/docs/desktop/>
+### From the command line
 
-Once it's running it listens on `127.0.0.1:8200` and routes workloads by the HTTP `Host` header.
+Each scenario has an API mode and a downloadable archive, so you can inspect the raw bytes:
 
-## Step 2 — Deploy the workload (pulls from ghcr)
-
-[`deploy/zip-sandbox.workload.yaml`](deploy/zip-sandbox.workload.yaml) pins both components by digest
-on ghcr, so applying it pulls the images straight from the registry — **no local build required.**
-
-> ⚠️ **One gotcha.** The extractor needs its `/tmp/unzip` volume, and the *quick* deploy paths
-> (`cosmonic dev`, publish drafts, the Desktop UI's "paste an image link" flow) generate a starter
-> spec from the image alone and **leave the `volumes` section out** — deployed that way it returns
-> `"sandbox unavailable"`. Apply the durable manifest (which keeps the volume) by one of the routes below.
-
-### Route A — an AI assistant over MCP *(recommended)*
-
-Cosmonic Desktop ships an MCP server (on by default). Connect it once in **Desktop → Settings → MCP
-Server** (see [Connect coding agents](https://cosmonic.com/docs/desktop/coding-agents/)) from Claude
-Code, Claude Desktop, Codex, Cursor or Gemini CLI, then ask:
-
-> "Apply `deploy/zip-sandbox.workload.yaml` to Cosmonic Desktop, then show me its status."
-
-It's applied verbatim — nothing drafts the volume away.
-
-### Route B — drop the manifest into Desktop's state directory
-
-Copy the manifest to `workloads/default/zip-sandbox.yaml` under the state directory (`cosmonicd paths`
-prints it). Desktop reconciles it.
-
-### Confirm it's healthy
-
-```
-cosmonic_workload_list        # zip-sandbox: running, restarts: 0 (web + extractor)
-```
-
-## Step 3 — Fire the attacks
-
-Open the UI and click a red button — each streams a genuinely malicious `zip 8.6.0` archive into the
-sandbox:
-
-- **UI:** <http://zip-sandbox.localhost:8200/>
-- **Host-header form (any shell):** `curl -H 'Host: zip-sandbox.localhost' http://127.0.0.1:8200/`
-
-| Button | Vulnerability | What the archive does |
-|--------|---------------|-----------------------|
-| **Bug 1** | RUSTSEC-2026-0367 · setuid · CVSS 7.3 | setuid / setgid / sticky mode bits |
-| **Bug 2** | CWE-22 · zip-slip / path traversal · CVSS 8.1 | `../` names that try to write outside the tree |
-| **Bug 3** | CVE-2026-115905 · zip cloaking · CVSS 10.0 | benign central-dir name hiding the real local-header path |
-| **Run all** | all three at once | one archive carrying every attack |
+| Scenario | Run it | Download the archive |
+|---|---|---|
+| Bug 1: setuid bits | `/run?mode=suid` (the default) | `/suid.zip` |
+| Bug 2: zip slip | `/run?mode=slip` | `/slip.zip` |
+| Bug 3: zip cloaking | `/run?mode=cloak` | `/cloak.zip` |
+| Run all attacks | `/run?mode=all` | `/all.zip` |
 
 ```bash
 B=http://127.0.0.1:8200
-# modes: suid (default) | slip | cloak | all
 curl -s -H 'Host: zip-sandbox.localhost' "$B/run?mode=all" | python3 -m json.tool
-# upload your own zip:
+
+# or upload your own zip
 curl -s -H 'Host: zip-sandbox.localhost' -H 'content-type: application/zip' \
      --data-binary @your.zip "$B/run" | python3 -m json.tool
 ```
 
-A contained run reads, e.g.:
+A contained run of `mode=all` reports:
 
 ```
 MITIGATED: 3 privileged (setuid/setgid/sticky) entries in the archive, 0 applied;
@@ -122,88 +82,84 @@ MITIGATED: 3 privileged (setuid/setgid/sticky) entries in the archive, 0 applied
 Everything stayed inside /tmp/unzip.
 ```
 
----
+## See it fail without a sandbox
 
-## Under the hood — why the sandbox neutralizes both
+[`native-demo/`](native-demo/README.md) is a small CLI that runs the same vulnerable crate directly on
+macOS or Linux, with no sandbox, so you can watch the attacks succeed first. It needs a Rust toolchain.
 
-**Bug 1 — the setuid bits.** [RUSTSEC-2026-0367](https://rustsec.org/advisories/RUSTSEC-2026-0367.html)
-(GHSA-vv5m-jxxh-4627, CWE-732, CVSS 7.3), affecting the Rust `zip` crate at `<= 9.0.0-pre3`. On Unix a
-**setuid** file runs with the privileges of its *owner*, not whoever launched it — a classic privilege
--escalation primitive. A ZIP can store those bits per entry, and on extract the crate copies them
-through **verbatim instead of masking them off** (its *writer* masks with `& 0o777` — one half closes
-the door the other leaves open). An attacker waits for a privileged process (an installer, a CI job, a
-root container build) to extract a crafted entry and lands a setuid-root file. Patched in `zip 9.0.0`.
+```bash
+cd native-demo
+cargo run              # bug 1 (the setuid bit survives) and bug 3 (the cloaked path is written)
+cargo run -- cloak     # bug 3 only
+```
 
-**Bug 2 — zip cloaking.** [CVE-2026-115905](https://www.cve.org/CVERecord?id=CVE-2026-115905)
-(GHSA-m665-v7pm-7grj, CWE-436 / CWE-20, **CVSS 10.0**), affecting the crate **through 9.0.4**. A ZIP
-stores each entry's name twice — central directory and local file header. `ZipArchive` trusts the
-central directory; a streaming reader trusts the local header, and the crate never reconciles the two.
-A crafted archive advertises `release-notes.txt` to a scanner while a streaming extractor writes
-`home/you/.ssh/authorized_keys` — a path the scanner never saw. On a service that extracts into its own
-tree that's an arbitrary file overwrite, the road to RCE. Patched in `zip 9.0.5`.
+Bug 1 ends with `VULNERABLE: 1 file(s) kept a SUID/SGID/sticky bit after extraction`, and
+`ls -l` on the extracted file shows `-rwsr-xr-x`. Bug 3 shows the scanner seeing
+`release-notes.txt` while the streaming extractor writes `config/app.conf`. Same code, same kind
+of archive; the only difference is what the code was handed.
 
-**The mechanism.** The extractor is compiled to `wasm32-wasip2`, which is **not a Unix target**, so the
-crate's permission-setting code — guarded by `#[cfg(unix)]`, the exact condition it uses to apply those
-bits — is **compiled out entirely**. The malicious bit still arrives (the report surfaces it) but no
-code path can apply it. On top of that the workload is granted exactly one directory and no network, so
-the zip-slip and phone-home surfaces fail too. The cloaking bug is different: the sandbox does **not**
-fix the parser differential (that's a crate bug, present in wasm too) — it removes the *consequence*.
-The extractor's only writable path is the single `/tmp/unzip` preopen, so even the honored cloak path
-can only ever land on a throwaway file in an ephemeral, per-request directory, never on a file the host
-depends on.
+## How it's built
 
-> **Everything here is non-weaponized.** The crafted archives contain only inert text files. We set the
-> hostile permission *metadata bits* and hostile entry *names* and observe what the runtime does with
-> them. No executable, no root access, and no actual privilege escalation is ever performed.
+One workload, two WebAssembly components, each its own sandbox with its own grants. `web` streams the
+uploaded archive to `extractor` over a live `stream<u8>` inside the host; the browser only ever talks
+to `web`.
 
----
+| Component | Filesystem | Network | HTTP | Job |
+|---|---|---|---|---|
+| `web` | none | no egress | serves `wasi:http/handler` | UI and upload; never stores the archive |
+| `extractor` | `/tmp/unzip` only (ephemeral) | no egress | none, reachable only through the link | the unzip, with the vulnerable crate |
+
+Those grants are the whole mitigation:
+
+- **Setuid bits have nowhere to land.** The extractor is compiled to `wasm32-wasip2`, which isn't a
+  Unix target, so the crate's `#[cfg(unix)]` permission code is compiled out. The bit arrives and the
+  report shows it; nothing can apply it.
+- **Zip slip has nowhere to go.** `/tmp/unzip` is the only path that exists inside the sandbox.
+- **Cloaking is contained, not fixed.** The parser differential is a crate bug and still happens in
+  Wasm. But the cloaked write can only land in a throwaway, per-request folder, never on a file the host
+  relies on.
+- **Nothing phones home.** Both components ship `allowedHosts: []`.
+
+The crafted archives are non-weaponized: their contents are inert text. Only the permission bits and
+entry names are hostile, and no real privilege escalation is ever performed.
+
+The same manifest runs unchanged on Kubernetes with [Cosmonic Control](https://cosmonic.com/control/),
+where you can enforce these grants with admission policies. See
+[Securing a cluster](https://cosmonic.com/docs/operations/securing-a-cluster/).
 
 ## Build from source (optional)
 
-The deploy step above needs none of this — it pulls prebuilt images from ghcr. To rebuild:
+The quickstart pulls prebuilt images from ghcr
+(`ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web` and `.../extractor`). To rebuild:
 
 ```bash
-# web component
-cd cosmonic-app/web && cargo build --target wasm32-wasip2 --release
-# extractor component
-cd ../extractor && cargo build --target wasm32-wasip2 --release
+cd cosmonic-app/web       && cargo build --target wasm32-wasip2 --release
+cd ../extractor           && cargo build --target wasm32-wasip2 --release
 # publish (bump the tag, then update the digest in deploy/zip-sandbox.workload.yaml)
 wash oci push ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:<tag> \
   cosmonic-app/web/target/wasm32-wasip2/release/zip_sandbox_web.wasm
 ```
 
-Cosmonic Desktop's Preflight doctor provisions `rustc`, the `wasm32-wasip2` target, and `wash`.
+Cosmonic Desktop's Preflight check installs `rustc`, the `wasm32-wasip2` target and `wash` for you.
 
----
-
-## The takeaway
-
-**Defense in depth** is both:
-
-1. **Patch** — upgrade to `zip >= 9.0.5`, which masks the privileged bits (bug 1) and reconciles the dual headers (bug 2).
-2. **Contain** — run anything that extracts, parses, or executes untrusted input inside a
-   capability-scoped WASM sandbox, so a vulnerable dependency (**known or not-yet-known**) cannot apply a
-   malicious bit, escape its directory, or reach anything you didn't grant.
-
-Further reading:
-[Choosing an agent sandbox](https://cosmonic.com/ai-sandbox/choosing-an-agent-sandbox/) ·
-[Principles](https://cosmonic.com/ai-sandbox/principles/) ·
-[Deny by default](https://cosmonic.com/ai-sandbox/principles/deny-by-default/) ·
-[Least authority](https://cosmonic.com/ai-sandbox/least-privilege-ai-agents/) ·
-[Capabilities](https://cosmonic.com/ai-sandbox/capabilities/)
-
----
-
-### Repo layout
+## Repo layout
 
 ```
 .
-├── README.md                          ← this walkthrough
-├── deploy/
-│   └── zip-sandbox.workload.yaml      ← one workload, two components, linked by a p3 stream (ghcr images)
+├── deploy/zip-sandbox.workload.yaml   one workload, two components (ghcr images, pinned by digest)
 ├── cosmonic-app/
-│   ├── wit/                           ←   cosmonic:zip-demo/extraction (the live-stream link)
-│   ├── web/                           ←   the UI component (crafts + streams the archive in)
-│   └── extractor/                     ←   the unzip component (the vulnerable crate, exports extraction)
-└── docs/images/                       ← the hero banner
+│   ├── wit/                           cosmonic:zip-demo/extraction, the stream link
+│   ├── web/                           UI component: crafts and streams the archives
+│   └── extractor/                     unzip component: the vulnerable crate, one folder, no network
+├── native-demo/                       CLI that runs the same bugs with no sandbox (macOS, Linux)
+└── docs/images/                       hero image
 ```
+
+## Keep reading
+
+[Choosing an agent sandbox](https://cosmonic.com/ai-sandbox/choosing-an-agent-sandbox/) ·
+[Deny by default](https://cosmonic.com/ai-sandbox/principles/deny-by-default/) ·
+[Least authority](https://cosmonic.com/ai-sandbox/least-privilege-ai-agents/) ·
+[Capabilities over ambient authority](https://cosmonic.com/ai-sandbox/capabilities/)
+
+Questions, or a case where this breaks? Find us in the [wasmCloud Slack](https://slack.wasmcloud.com/).
