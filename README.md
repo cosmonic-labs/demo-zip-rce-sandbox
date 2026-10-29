@@ -23,8 +23,8 @@ nothing is patched.
 | Button | Vulnerability | What the crafted archive does | In the sandbox |
 |---|---|---|---|
 | **Bug 1: setuid bits** | [RUSTSEC-2026-0367](https://rustsec.org/advisories/RUSTSEC-2026-0367.html) · setuid · CVSS 7.3 | Three entries carry setuid, setgid and sticky bits. On a Unix extractor they'd hand a dropped file root-level powers. | All three bits reach the report; zero are applied. |
-| **Bug 2: zip slip** | CWE-22 · path traversal · CVSS 8.1 | Entry names use `../` to write outside the extraction folder, aiming at `/tmp` and `/etc/cron.d`. | All three paths are refused. |
-| **Bug 3: zip cloaking** | [CVE-2026-115905](https://www.cve.org/CVERecord?id=CVE-2026-115905) · zip cloaking · CVSS 10.0 | The central directory shows a scanner `release-notes.txt`; the local header tells a streaming extractor to write `home/you/.ssh/authorized_keys`. | The cloaked write is honored but lands inside `/tmp/unzip`, a throwaway folder. |
+| **Bug 2: zip slip** | CWE-22 / CWE-59 · zip slip via symlinks | Three symlink entries aimed at known paths outside the folder: `/etc/cron.d`, `/root/.ssh/authorized_keys` and `/tmp`. zip 8.6.0 refuses `../` names, but on Unix its `extract()` plants these links unchecked. | All three land as plain files holding the target text; no link exists. |
+| **Bug 3: zip cloaking** | [CVE-2026-115905](https://www.cve.org/CVERecord?id=CVE-2026-115905) · zip cloaking · CVSS 10.0 | The central directory shows a scanner `release-notes.txt`; the local header tells the crate's streaming extractor to write `home/you/.ssh/authorized_keys`. | The cloaked write is honored but lands inside `/tmp/unzip`, a throwaway folder. |
 | **Run all attacks** | all three at once | One archive carrying every attack above. | All of the above, contained together. |
 
 Other IDs, if you're searching for them: RUSTSEC-2026-0367 is GHSA-vv5m-jxxh-4627 (CWE-732), and
@@ -78,7 +78,7 @@ A contained run of `mode=all` reports:
 
 ```
 MITIGATED: 3 privileged (setuid/setgid/sticky) entries in the archive, 0 applied;
-3 zip-slip paths refused; 1 cloaked entry (CVE-2026-115905) honored but confined.
+3 zip-slip symlinks neutralized; 1 cloaked entry (CVE-2026-115905) honored but confined.
 Everything stayed inside /tmp/unzip.
 ```
 
@@ -114,7 +114,8 @@ Those grants are the whole mitigation:
 - **Setuid bits have nowhere to land.** The extractor is compiled to `wasm32-wasip2`, which isn't a
   Unix target, so the crate's `#[cfg(unix)]` permission code is compiled out. The bit arrives and the
   report shows it; nothing can apply it.
-- **Zip slip has nowhere to go.** `/tmp/unzip` is the only path that exists inside the sandbox.
+- **Zip slip has nowhere to go.** The crate's symlink code is compiled out of the Wasm build, so each
+  link lands as a plain file, and `/tmp/unzip` is the only path that exists inside the sandbox anyway.
 - **Cloaking is contained, not fixed.** The parser differential is a crate bug and still happens in
   Wasm. But the cloaked write can only land in a throwaway, per-request folder, never on a file the host
   relies on.

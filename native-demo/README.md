@@ -1,7 +1,7 @@
 # native-demo: watch the bugs work, with no sandbox
 
 A small Rust CLI that runs the vulnerable `zip` 8.6.0 crate directly on your machine (macOS or Linux),
-so you can see two of the demo's bugs succeed before you watch the sandbox contain them.
+so you can see all three of the demo's bugs succeed before you watch the sandbox contain them.
 
 - **Bug 1, setuid bits:** [RUSTSEC-2026-0367](https://rustsec.org/advisories/RUSTSEC-2026-0367.html)
   (CWE-732, CVSS 7.3). Extraction keeps the setuid, setgid and sticky bits from the archive instead of
@@ -11,8 +11,10 @@ so you can see two of the demo's bugs succeed before you watch the sandbox conta
   sees. A streaming extractor reads the local file header, which is what lands on disk. A crafted
   archive gives the two different names.
 
-Bug 2 (zip slip) depends on how the caller joins paths, so it's shown in the sandboxed demo rather
-than here.
+- **Bug 2, zip slip:** zip 8.6.0 refuses `../` names, but on a Unix target its `extract()` creates
+  symlink entries without checking where they point. The archive plants links to `/etc/cron.d`,
+  `/root/.ssh/authorized_keys` and `/tmp`; anything that later writes through one writes the real
+  target. The CLI only plants the links and shows where they point.
 
 > **Non-weaponized.** The crafted archives contain only inert text. The CLI sets the hostile
 > permission bits and entry names and shows what survives extraction. It ships no executable and
@@ -24,7 +26,8 @@ You need a Rust toolchain (`cargo`).
 
 ```bash
 cd native-demo
-cargo run              # both bugs, in a fresh temp directory
+cargo run              # all three bugs, in a fresh temp directory
+cargo run -- slip      # bug 2 only
 cargo run -- cloak     # bug 3 only
 ```
 
@@ -70,6 +73,6 @@ archive gets past a scanner and overwrites a file the service trusts.
 
 ## The two fixes
 
-1. **Patch:** upgrade to `zip` 9.0.5, which fixes both bugs.
+1. **Patch:** upgrade to `zip` 9.0.5, which fixes both published advisories (setuid and cloaking).
 2. **Contain:** run extraction where those bits can't be applied and the writer can't leave its folder.
    That's the [sandboxed demo](../README.md): the same crate, compiled to a Cosmonic workload.

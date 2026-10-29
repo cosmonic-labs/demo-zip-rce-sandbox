@@ -35,7 +35,8 @@ with the network-facing UI, and the live stream is the only thing that crosses b
    permission code is compiled out. The malicious `0o104755` mode arrives — the report surfaces it —
    but nothing can apply it.
 2. **Capability confinement.** `extractor`'s only filesystem authority is the single preopened
-   `/tmp/unzip`. A zip-slip or absolute path can't escape; `/etc`, `$HOME`, `..` don't exist from
+   `/tmp/unzip`. A zip-slip symlink or absolute path can't escape (the crate's symlink code is
+   compiled out, so links land as plain files); `/etc`, `$HOME`, `..` don't exist from
    inside. The report runs these as live escape probes (they fail with `os error 44`).
 3. **Deny-all egress.** Both components ship `allowedHosts: []` — neither can phone home.
 4. **No filesystem on `web` at all, and no HTTP on `extractor` at all.** `web` imports no

@@ -188,7 +188,7 @@ pub const PAGE: &str = r###"<!doctype html>
       <thead><tr><th>Button</th><th>Vulnerability</th><th>What the crafted archive does</th></tr></thead>
       <tbody>
         <tr><td><span class="bugtag">Bug 1</span></td><td>RUSTSEC-2026-0367 · setuid · CVSS 7.3</td><td>Entries carry setuid / setgid / sticky mode bits — on a Unix extractor they would hand a dropped file root-level powers.</td></tr>
-        <tr><td><span class="bugtag">Bug 2</span></td><td>CWE-22 · zip-slip / path traversal · CVSS 8.1</td><td>Entry names use <code>../</code> sequences to try to write <em>outside</em> the extraction directory.</td></tr>
+        <tr><td><span class="bugtag">Bug 2</span></td><td>CWE-22 / CWE-59 · zip slip via symlinks</td><td>Entries are symlinks aimed at known paths <em>outside</em> the extraction directory.</td></tr>
         <tr><td><span class="bugtag">Bug 3</span></td><td>CVE-2026-115905 · zip cloaking · CVSS 10.0</td><td>A benign central-directory name (a scanner clears it) hides the real path a streaming extractor honors from the local header.</td></tr>
         <tr><td><span class="bugtag">Run all</span></td><td>all three at once</td><td>One archive carrying every attack above, to show the sandbox contains them together.</td></tr>
       </tbody>
@@ -315,7 +315,7 @@ pub const PAGE: &str = r###"<!doctype html>
     $('stats').innerHTML = [
       stat('bad',  priv,    'setuid/setgid/sticky in archive'),
       stat('good', applied, 'privileged bits applied'),
-      stat('bad',  slip,    'zip-slip paths refused'),
+      stat('bad',  slip,    'zip-slip symlinks neutralized'),
       stat(cloaked>0?'bad':'good', cloaked, 'cloaked entries exposed'),
     ].join('');
 
@@ -335,7 +335,7 @@ pub const PAGE: &str = r###"<!doctype html>
       // sandbox — for a cloak, proof the honored path landed in /tmp/unzip.
       let where;
       if(hasPriv){ where='<span class="tag red" title="file is confined to '+esc(root)+' — the privileged bit was never applied">BLOCKED</span>'; }
-      else if(e.traversal_blocked){ where='<span class="tag red" title="path escape refused">BLOCKED</span>'; }
+      else if(e.traversal_blocked){ where='<span class="tag red" title="escape neutralized">BLOCKED</span>'; }
       else if(e.written_to){ where='<span class="tag grn" title="forced inside the one directory this component can write">SANDBOXED</span> <span class="landpath">'+esc(root+'/'+e.written_to)+'</span>'; }
       else { where='<span class="tag red">BLOCKED</span>'; }
       return '<tr><td>'+nameCell+'</td><td>'+esc(e.declared_mode||'—')+'</td><td>'+bitsCell+'</td><td>'+where+'</td></tr>';

