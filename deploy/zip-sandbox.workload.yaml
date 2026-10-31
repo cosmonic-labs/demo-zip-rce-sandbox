@@ -33,7 +33,7 @@ spec:
     # The UI + HTTP entrypoint. Imports cosmonic:zip-demo/extraction (satisfied
     # by the extractor component below, auto-linked). Zero capability grants.
     - name: web
-      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:0.1.2@sha256:019bd00726e6d8135470c8d0492f8c2ae7e5abd54e337d5cf53d4db4f9bbc238
+      image: ghcr.io/cosmonic-labs/demo-zip-rce-sandbox/web:0.1.3@sha256:0c1c015603374d647fe7177a3fd20d7226018e390b6059fa5ff7f1041f5e1b9b
       poolSize: 8
       localResources:
         allowedHosts: []   # deny-all egress; no volume = zero filesystem authority
