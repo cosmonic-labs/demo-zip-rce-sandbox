@@ -31,6 +31,10 @@ mod page;
 /// The branded hero infographic (served at `/hero.png` for the page banner).
 const HERO_PNG: &[u8] = include_bytes!("hero.png");
 
+/// Cosmonic's consent-gated analytics loader (the same logic as
+/// cosmonic.com/site.js), served at `/site.js` for the page's `<head>`.
+const SITE_JS: &[u8] = include_bytes!("site.js");
+
 /// The Cosmonic icon mark, served at `/favicon.svg` as the browser-tab icon
 /// (official purple #655DC6).
 const FAVICON_SVG: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 42"><path fill="#655DC6" d="M17.47,32.38C15.36,26.74,12.59,24,6.92,21.89a.93.93,0,0,1,0-1.75c5.67-2.11,8.44-4.86,10.55-10.5a.93.93,0,0,1,1.76,0c1.7,5.7,3.67,9.57,16.62,9.82a.93.93,0,0,0,.94-.93V12.17a3.35,3.35,0,0,0-1.65-2.88L20.07.46a3.3,3.3,0,0,0-3.35,0L1.65,9.29A3.35,3.35,0,0,0,0,12.18V29.87a3.33,3.33,0,0,0,1.65,2.88l15.07,8.83a3.34,3.34,0,0,0,3.35,0l15.07-8.83a3.33,3.33,0,0,0,1.65-2.88V23.45a.93.93,0,0,0-.95-.93c-13,.25-14.91,4.12-16.61,9.81A.92.92,0,0,1,17.47,32.38Z"/></svg>"##;
@@ -123,6 +127,10 @@ impl wasip3::exports::http::handler::Guest for Component {
             }
             // The branded infographic, served to the page's hero banner.
             (Method::Get, "/hero.png") => respond(200, "image/png", HERO_PNG.to_vec()),
+            // Consent-gated analytics: HubSpot banner first, then GTM/Apollo.
+            (Method::Get, "/site.js") => {
+                respond(200, "text/javascript; charset=utf-8", SITE_JS.to_vec())
+            }
             // The Cosmonic icon as the browser-tab favicon.
             (Method::Get, "/favicon.svg") => {
                 respond(200, "image/svg+xml; charset=utf-8", FAVICON_SVG.to_vec())

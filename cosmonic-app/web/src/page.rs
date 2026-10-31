@@ -178,7 +178,25 @@ pub const PAGE: &str = r###"<!doctype html>
   .lk .d{color:var(--muted);font-size:13px;margin-top:4px}
   .foot{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--faint);font-size:12.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .foot code{font-family:var(--mono);color:var(--muted)}
+  .foot .legal{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center}
+  .foot .legal button{appearance:none;border:0;background:none;padding:0;font:inherit;color:var(--purple-lt);cursor:pointer}
+  .foot .legal button:hover{text-decoration:underline}
 </style>
+<!-- Cosmonic analytics, only where Cosmonic hosts this demo: a local copy (on
+     Cosmonic Desktop, say) loads none of it. /site.js is consent-gated: the
+     HubSpot cookie banner loads first, then Google Tag Manager and Apollo only
+     once consent allows. The Ahrefs beacon is cookieless. -->
+<script>
+  if (/(^|\.)[ck]osmonic\.com$/.test(location.hostname)) {
+    [['/site.js'], ['https://analytics.ahrefs.com/analytics.js', '8tGIHvyVLh6u4Ygcn/24CA']].forEach(function (t) {
+      var s = document.createElement('script');
+      s.src = t[0];
+      s.async = true;
+      if (t[1]) s.setAttribute('data-key', t[1]);
+      document.head.appendChild(s);
+    });
+  }
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -271,7 +289,13 @@ pub const PAGE: &str = r###"<!doctype html>
 
   <div class="foot">
     <span>Same vulnerable <code>zip 8.6.0</code> as the host demo · not patched (both bugs fixed in <code>9.0.5</code>) · contained by the sandbox.</span>
-    <span><a href="https://cosmonic.com/ai-sandbox/" target="_blank" rel="noopener">cosmonic.com/ai-sandbox</a></span>
+    <span class="legal">
+      <a href="https://cosmonic.com/ai-sandbox/" target="_blank" rel="noopener">cosmonic.com/ai-sandbox</a>
+      <a href="https://cosmonic.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy</a>
+      <a href="https://cosmonic.com/legal/cookie-policy/" target="_blank" rel="noopener">Cookies</a>
+      <span id="cookie-prefs-item" hidden><button type="button" id="cookie-prefs">Cookie Preferences</button></span>
+      <span>© 2026 Cosmonic</span>
+    </span>
   </div>
 
 </div>
