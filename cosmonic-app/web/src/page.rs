@@ -204,7 +204,7 @@ pub const PAGE: &str = r###"<!doctype html>
     <span class="arr" aria-hidden="true">→</span>
   </a>
 
-  <p class="eyebrow"><span style="color:var(--red)">RUSTSEC-2026-0367</span> + <span style="color:var(--red)">CVE-2026-115905</span> · live demo</p>
+  <p class="eyebrow">Sandboxing: <span style="color:var(--red)">RUSTSEC-2026-0367</span> + <span style="color:var(--red)">CVE-2026-115905</span> · live demo</p>
   <h1>You can't execute<br>what you <span class="u">don't have</span>.</h1>
   <p class="lede">An attacker can craft a malicious <code>.zip</code> file that runs with <b>root powers</b> — or silently <b>overwrites a file another service trusts</b> — just by being opened. <b>Two real CVEs, one library, a week apart.</b> Below, the <b>same vulnerable code</b> runs inside an <b>isolated, deny-by-default, capability driven, secure Cosmonic sandbox</b> that only has the exact capabilities needed at execute time. <b>Nothing is patched.</b> Watch both fail anyway.</p>
   <p class="lede" style="margin-top:10px">This is a demonstration of mitigating Remote Code Execution (RCE) type exploits using a secure, deny-by-default, isolated Cosmonic Sandbox.</p>
