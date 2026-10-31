@@ -152,6 +152,15 @@ pub const PAGE: &str = r###"<!doctype html>
   .bugtable{margin:6px 0 4px}
   .bugtable td{font-family:var(--sans);vertical-align:top;color:var(--muted);font-size:13px}
   .bugtable td:nth-child(2){font-family:var(--mono);font-size:11.5px;color:var(--red-tint,#f3b79e);white-space:nowrap}
+  /* phones: each row becomes a card — tag + vulnerability, description below */
+  @media(max-width:620px){
+    .bugtable,.bugtable tbody{display:block}
+    .bugtable thead{display:none}
+    .bugtable tr{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px 10px;padding:12px 0;border-bottom:1px solid var(--line)}
+    .bugtable td{padding:0;border:0}
+    .bugtable td:nth-child(2){white-space:normal}
+    .bugtable td:nth-child(3){grid-column:1/-1}
+  }
   .bugtag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap;color:#f3b79e;background:var(--red-dim);box-shadow:inset 0 0 0 1px var(--red-line)}
   .cloaknote{font-family:var(--mono);font-size:10.5px;color:#f3b79e;margin-top:3px}
   .landpath{font-family:var(--mono);font-size:11px;color:#8ff0cd;margin-left:6px;word-break:break-all}
