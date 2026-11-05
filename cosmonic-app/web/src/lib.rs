@@ -126,7 +126,20 @@ impl wasip3::exports::http::handler::Guest for Component {
                 respond_attachment("application/zip", "all.zip", archives::craft_combined_zip())
             }
             // The branded infographic, served to the page's hero banner.
-            (Method::Get, "/hero.png") => respond(200, "image/png", HERO_PNG.to_vec()),
+            // Also the og:image / twitter:image social card (absolute URL in page.rs).
+            (Method::Get, "/hero.png") => build_response(
+                200,
+                &[
+                    ("content-type", b"image/png".to_vec()),
+                    ("cache-control", b"public, max-age=86400".to_vec()),
+                ],
+                HERO_PNG.to_vec(),
+            ),
+            // Some link unfurlers probe with HEAD before fetching.
+            (Method::Head, "/") | (Method::Head, "") => {
+                respond(200, "text/html; charset=utf-8", Vec::new())
+            }
+            (Method::Head, "/hero.png") => respond(200, "image/png", Vec::new()),
             // Consent-gated analytics: HubSpot banner first, then GTM/Apollo.
             (Method::Get, "/site.js") => {
                 respond(200, "text/javascript; charset=utf-8", SITE_JS.to_vec())

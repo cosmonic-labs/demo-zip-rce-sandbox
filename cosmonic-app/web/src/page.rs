@@ -12,6 +12,25 @@ pub const PAGE: &str = r###"<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cosmonic Sandbox — Stopping RCE (two zip-crate CVEs)</title>
+<meta name="description" content="A malicious .zip tries to plant a root program or overwrite a file another service trusts. Two zip-crate CVEs, blocked live by Cosmonic's capability-driven WebAssembly sandbox — try the attack yourself.">
+<link rel="canonical" href="https://zip-sandbox.kosmonic.com/">
+<!-- Social unfurls (LinkedIn, Facebook, Slack, Discord, iMessage, Teams read Open Graph; X reads twitter:*). Image URLs must be absolute. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cosmonic">
+<meta property="og:url" content="https://zip-sandbox.kosmonic.com/">
+<meta property="og:title" content="Stopping RCE: two zip-crate CVEs vs. the Cosmonic sandbox">
+<meta property="og:description" content="A malicious .zip tries to plant a root program or overwrite a file another service trusts. Watch a capability-driven WebAssembly sandbox block every move — live.">
+<meta property="og:image" content="https://zip-sandbox.kosmonic.com/hero.png">
+<meta property="og:image:secure_url" content="https://zip-sandbox.kosmonic.com/hero.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="A malicious .zip tries to plant a root program or overwrite a trusted file; two Cosmonic sandboxes with scoped grants block every move across both zip-crate CVEs.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Stopping RCE: two zip-crate CVEs vs. the Cosmonic sandbox">
+<meta name="twitter:description" content="A malicious .zip tries to plant a root program or overwrite a trusted file. Watch a capability-driven WebAssembly sandbox block every move — live.">
+<meta name="twitter:image" content="https://zip-sandbox.kosmonic.com/hero.png">
+<meta name="twitter:image:alt" content="A malicious .zip is blocked by two Cosmonic sandboxes with scoped grants.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
